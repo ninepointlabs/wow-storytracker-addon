@@ -1,0 +1,9 @@
+## Interface: 11506
+## Title: StoryTracker
+## Notes: Records your adventures for storytelling
+## Author: Tim
+## Version: 1.0.0
+## SavedVariables: StoryTrackerDB
+
+core.lua
+events.lua
