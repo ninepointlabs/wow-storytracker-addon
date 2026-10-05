@@ -36,7 +36,9 @@ end
 
 -- Refresh character metadata. Safe to call repeatedly; guild info in
 -- particular is often unavailable until after login completes.
-function ST:UpdateCharacterInfo()
+-- During PLAYER_LOGOUT the Forever client can report a stale (pre-ding)
+-- UnitLevel, so at logout the tracked level is kept instead.
+function ST:UpdateCharacterInfo(atLogout)
     local char = self.char
     if not char then return end
 
@@ -49,7 +51,9 @@ function ST:UpdateCharacterInfo()
     char.className = className or char.className
     char.race = raceToken or char.race
     char.raceName = raceName or char.raceName
-    char.level = UnitLevel("player") or char.level
+    if not atLogout then
+        char.level = UnitLevel("player") or char.level
+    end
     char.faction = UnitFactionGroup("player") or char.faction
 
     -- Only fill guild on first sight; after that CheckGuild (events.lua)
@@ -128,7 +132,7 @@ local function FinalizeSession()
     local now = time()
     session.logoutTime = now
     session.logoutZone = GetZoneText() or ""
-    session.logoutLevel = UnitLevel("player")
+    session.logoutLevel = ST.char.level or UnitLevel("player")
     session.durationMinutes = math.floor((now - session.loginTime) / 60 + 0.5)
 end
 
@@ -161,7 +165,7 @@ end
 
 function core.PLAYER_LOGOUT()
     if not ST.char then return end
-    ST:UpdateCharacterInfo()
+    ST:UpdateCharacterInfo(true)
     FinalizeSession()
 end
 

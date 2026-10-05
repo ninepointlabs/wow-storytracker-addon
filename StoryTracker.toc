@@ -2,7 +2,7 @@
 ## Title: StoryTracker
 ## Notes: Records your adventures for storytelling
 ## Author: Tim
-## Version: 1.0.1
+## Version: 1.0.2
 ## SavedVariables: StoryTrackerDB
 
 core.lua

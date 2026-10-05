@@ -1,9 +1,12 @@
 -- StoryTracker event handlers. Each entry in H is registered by core.lua;
 -- handlers call ST:RecordEvent(type, data) to append to the character log.
--- Classic-era (1.15.x) API only.
+-- Forever (1.60.x) runs on the modern engine: several Classic-era globals
+-- moved under C_* namespaces. Prefer the C_* API, fall back to the global.
 
 local _, ST = ...
 local H = ST.handlers
+
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
 
 -- Individual PLAYER_MONEY events are recorded only for changes at least
 -- this large (copper); every change still counts toward session totals.
@@ -127,13 +130,36 @@ end
 ------------------------------------------------------------------------
 
 local function QuestLogEntry(index)
+    if C_QuestLog and C_QuestLog.GetInfo then
+        local info = C_QuestLog.GetInfo(index)
+        if not info or info.isHeader or info.isHidden then return nil end
+        return info.title, info.level, info.questID
+    end
     local title, level, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
     if not title or isHeader then return nil end
     return title, level, questID
 end
 
+local function NumQuestLogEntries()
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries then
+        return (C_QuestLog.GetNumQuestLogEntries())
+    end
+    return (GetNumQuestLogEntries())
+end
+
+local function QuestTitleByID(questID)
+    if not (questID and C_QuestLog) then return nil end
+    if C_QuestLog.GetTitleForQuestID then
+        return C_QuestLog.GetTitleForQuestID(questID)
+    end
+    if C_QuestLog.GetQuestInfo then
+        return C_QuestLog.GetQuestInfo(questID)
+    end
+    return nil
+end
+
 local function ScanQuestLog()
-    local numEntries = GetNumQuestLogEntries()
+    local numEntries = NumQuestLogEntries()
     for i = 1, numEntries do
         local title, level, questID = QuestLogEntry(i)
         if title and questID then
@@ -143,7 +169,10 @@ local function ScanQuestLog()
 end
 
 local function FindQuestIndex(questID)
-    for i = 1, GetNumQuestLogEntries() do
+    if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
+        return C_QuestLog.GetLogIndexForQuestID(questID)
+    end
+    for i = 1, NumQuestLogEntries() do
         local _, _, id = QuestLogEntry(i)
         if id == questID then return i end
     end
@@ -164,6 +193,7 @@ function H.QUEST_ACCEPTED(arg1, arg2)
         title, level, logQuestID = QuestLogEntry(index)
     end
     questID = questID or logQuestID
+    title = title or QuestTitleByID(questID)
     if questID and title then
         state.questCache[questID] = { title = title, level = level }
     end
@@ -189,9 +219,7 @@ end
 function H.QUEST_TURNED_IN(questID, xpReward, moneyReward)
     local cached = questID and state.questCache[questID]
     local title = cached and cached.title
-    if not title and C_QuestLog and C_QuestLog.GetQuestInfo then
-        title = C_QuestLog.GetQuestInfo(questID)
-    end
+    title = title or QuestTitleByID(questID)
     title = title or state.completingTitle
     ST:RecordEvent("QUEST_COMPLETED", {
         questName = title,
@@ -204,10 +232,38 @@ function H.QUEST_TURNED_IN(questID, xpReward, moneyReward)
     if questID then state.questCache[questID] = nil end
 end
 
--- Classic has no abandon event: SetAbandonQuest() selects the quest and
--- AbandonQuest() commits it, so hook both.
+local function RecordAbandon()
+    local info = state.abandoning
+    state.abandoning = nil
+    if not info or not info.questName then return end
+    ST:RecordEvent("QUEST_ABANDONED", info)
+end
+
+-- There is no abandon event: SetAbandonQuest() selects the quest and
+-- AbandonQuest() commits it, so hook both. Forever has them under
+-- C_QuestLog (keyed by questID); Classic Era has them as globals.
 local function HookAbandon()
     if not hooksecurefunc then return end
+    if C_QuestLog and C_QuestLog.SetAbandonQuest and C_QuestLog.AbandonQuest then
+        local function Capture()
+            local questID = C_QuestLog.GetAbandonQuest and C_QuestLog.GetAbandonQuest()
+            if not questID or questID == 0 then return false end
+            local cached = state.questCache[questID]
+            state.abandoning = {
+                questName = (cached and cached.title) or QuestTitleByID(questID),
+                questLevel = cached and cached.level or nil,
+                questID = questID,
+            }
+            return true
+        end
+        hooksecurefunc(C_QuestLog, "SetAbandonQuest", Capture)
+        hooksecurefunc(C_QuestLog, "AbandonQuest", function()
+            if not state.abandoning then Capture() end
+            RecordAbandon()
+        end)
+        return
+    end
+    if not (SetAbandonQuest and AbandonQuest) then return end
     hooksecurefunc("SetAbandonQuest", function()
         local name = GetAbandonQuestName and GetAbandonQuestName()
         local index = GetQuestLogSelection and GetQuestLogSelection()
@@ -219,12 +275,7 @@ local function HookAbandon()
         end
         state.abandoning = { questName = name, questLevel = level, questID = questID }
     end)
-    hooksecurefunc("AbandonQuest", function()
-        local info = state.abandoning
-        if not info or not info.questName then return end
-        ST:RecordEvent("QUEST_ABANDONED", info)
-        state.abandoning = nil
-    end)
+    hooksecurefunc("AbandonQuest", RecordAbandon)
 end
 
 ------------------------------------------------------------------------
@@ -270,6 +321,11 @@ end
 function H.ZONE_CHANGED_NEW_AREA()
     local zone = GetZoneText()
     if not zone or zone == "" then return end
+    -- The zone name isn't known yet when a session starts on first login.
+    local session = ST:CurrentSession()
+    if session and (session.loginZone or "") == "" then
+        session.loginZone = zone
+    end
     if zone ~= state.lastZone then
         state.lastZone = zone
         ST:RecordEvent("ZONE_CHANGED_NEW_AREA", {
@@ -494,12 +550,31 @@ local function StandingLabel(standingID)
     return _G["FACTION_STANDING_LABEL" .. tostring(standingID)]
 end
 
--- Only factions under expanded headers are visible to GetFactionInfo;
--- collapsed ones are simply not compared until expanded.
+-- Returns name, standingID, barValue, isHeader, hasRep for a reputation
+-- list row.
+local function FactionAt(index)
+    if C_Reputation and C_Reputation.GetFactionDataByIndex then
+        local data = C_Reputation.GetFactionDataByIndex(index)
+        if not data then return nil end
+        return data.name, data.reaction, data.currentStanding, data.isHeader, data.isHeaderWithRep
+    end
+    local name, _, standingID, _, _, barValue, _, _, isHeader, _, hasRep = GetFactionInfo(index)
+    return name, standingID, barValue, isHeader, hasRep
+end
+
+local function NumFactions()
+    if C_Reputation and C_Reputation.GetNumFactions then
+        return C_Reputation.GetNumFactions()
+    end
+    return GetNumFactions and GetNumFactions() or 0
+end
+
+-- Only factions under expanded headers are visible in the reputation
+-- list; collapsed ones are simply not compared until expanded.
 local function SnapshotFactions()
     local snapshot = {}
-    for i = 1, GetNumFactions() do
-        local name, _, standingID, _, _, barValue, _, _, isHeader, _, hasRep = GetFactionInfo(i)
+    for i = 1, NumFactions() do
+        local name, standingID, barValue, isHeader, hasRep = FactionAt(i)
         if name and (not isHeader or hasRep) then
             snapshot[name] = { standingID = standingID, value = barValue }
         end
@@ -511,7 +586,9 @@ function H.UPDATE_FACTION()
     local current = SnapshotFactions()
     local previous = state.factions
     state.factions = current
-    if not previous then return end
+    -- On a new character the list is empty until login finishes; the
+    -- first populated list is the starting standings, not discoveries.
+    if not previous or not next(previous) then return end
     for name, now in pairs(current) do
         local before = previous[name]
         if not before then
@@ -548,6 +625,7 @@ local PROFESSION_HEADERS = {
 -- children, same caveat as factions.
 local function SnapshotSkills()
     local snapshot = {}
+    if not (GetNumSkillLines and GetSkillLineInfo) then return snapshot end
     local header
     for i = 1, GetNumSkillLines() do
         local name, isHeader, _, rank, _, _, maxRank = GetSkillLineInfo(i)
@@ -693,6 +771,11 @@ end
 
 function H.GROUP_ROSTER_UPDATE()
     local current = GroupSnapshot()
+    -- A group always has someone else in it. If no other member is known
+    -- yet, the roster is still loading: wait for the next update so a new
+    -- party is recorded once, with its members, instead of as "formed"
+    -- (size 1) followed by "changed".
+    if current.kind and current.count == 0 then return end
     local previous = state.group
     state.group = current
     if not previous then return end
@@ -819,6 +902,15 @@ function H.PLAYER_ENTERING_WORLD()
     end
 end
 
+-- Combat log access is not guaranteed on every client build.
+if not CombatLogGetCurrentEventInfo then
+    H.COMBAT_LOG_EVENT_UNFILTERED = nil
+end
+
 function ST:OnLoad()
-    HookAbandon()
+    -- A missing API must not take the rest of the addon down with it.
+    local ok, err = pcall(HookAbandon)
+    if not ok then
+        print("|cffff6060StoryTracker|r: quest abandon tracking unavailable: " .. tostring(err))
+    end
 end
