@@ -1,6 +1,6 @@
 # StoryTracker — WoW Character Chronicle Addon (Forever)
 
-Records every detail of your WoW Forever (Classic 1.15.x) journey for storytelling.
+Records every detail of your WoW Forever (client 1.60.x) journey for storytelling.
 
 **This is the Forever version. For Retail, see [wow-storytracker-addon-retail](https://github.com/ninepointlabs/wow-storytracker-addon-retail).**
 
@@ -26,12 +26,15 @@ Every session is recorded to SavedVariables with timestamps, zones, and details:
 
 ## Compatibility
 
-**WoW Forever only** (Classic 1.15.6). Does not work on Retail.
+**WoW Forever only** (client 1.60.x, interface 16001). Does not work on Retail.
+
+Forever installs as the `_classic_beta_` client folder (Battle.net may list it
+as "Classic" or "Classic Beta"), not `_classic_era_`.
 
 ## Installation
 
 1. Download the latest release from the [Releases page](https://github.com/ninepointlabs/wow-storytracker-addon/releases)
-2. Extract to `World of Warcraft/_classic_era_/Interface/AddOns/StoryTracker/`
+2. Extract to `World of Warcraft/_classic_beta_/Interface/AddOns/StoryTracker/`
 3. Works immediately — no configuration needed
 
 ## How It Works
