@@ -209,6 +209,9 @@ frame:RegisterEvent("PLAYER_LOGOUT")
 -- has C_AddOns.GetAddOnMetadata, older clients only the global.
 local GetAddOnMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
 
+local SUPPORT_EMAIL = "help@ninepointlabs.com"
+local CREATED = "October 2026" -- month of the first commit, 2026-10-02
+
 local function Metadata(field)
     if not GetAddOnMetadata then return nil end
     local ok, value = pcall(GetAddOnMetadata, addonName, field)
@@ -216,24 +219,27 @@ local function Metadata(field)
 end
 
 function ST:PrintAbout()
+    local title = Metadata("Title") or "StoryTracker"
     local version = Metadata("Version") or "unknown"
-    local build, buildNumber, _, interface = GetBuildInfo()
-    local client = string.format("WoW %s (build %s, interface %s)",
-        tostring(build), tostring(buildNumber), tostring(interface))
-    local notes = Metadata("Notes")
-    print("|cffffd100StoryTracker|r " .. version .. (notes and (" — " .. notes) or ""))
-    print("Made by Nine Point Labs. Created October 2026.")
-    print("License: MIT License, © 2026 Nine Point Labs. Full text in the addon folder's LICENSE file.")
-    print("Support: help@ninepointlabs.com — please include this line:")
-    print("StoryTracker " .. version .. ", " .. client)
-    print("Privacy: no network access (WoW addons can't use it). StoryTracker records your "
-        .. "character (name, realm, class, race, level, faction, guild), play sessions, and "
-        .. "adventure events (quests, zones, levels, deaths, dungeons, rare+ loot, mounts, "
-        .. "reputation, skills, gold, notable kills, guild changes, group members' names, PvP, duels).")
-    print("It is saved as StoryTrackerDB in WTF/Account/<account>/SavedVariables/StoryTracker.lua "
-        .. "on logout or /reload, and stays on your computer unless you run the companion tool "
-        .. "or share that file yourself. To clear it, delete that file while the game is closed.")
-    print("Built with: " .. client .. ".")
+    local wowVersion, build, _, interface = GetBuildInfo()
+    local client = string.format("WoW %s build %s (interface %s)",
+        tostring(wowVersion), tostring(build), tostring(interface))
+    local lines = {
+        "|cffffd100" .. title .. "|r " .. version,
+        Metadata("Notes") or "Records your WoW adventures for storytelling",
+        "Made by Nine Point Labs. Created " .. CREATED .. ".",
+        "License: MIT License, Copyright (c) 2026 Nine Point Labs. Full text: the LICENSE file in the addon's folder (Interface/AddOns/StoryTracker).",
+        "Support: " .. SUPPORT_EMAIL .. " - please include this line:",
+        string.format("%s %s, %s, %s", title, version, client, GetLocale and GetLocale() or "unknown locale"),
+        "Privacy: StoryTracker has no network access. It saves to WTF/Account/<account>/SavedVariables/StoryTracker.lua (StoryTrackerDB), written by WoW on logout or /reload.",
+        "Per character it records your name, realm, class, race, level, faction and guild; session times, zones and gold; quests, levels, deaths (and what killed you), dungeons, bosses, notable kills, rare+ loot, mounts, reputation, professions, spells, PvP results, and guild and group changes.",
+        "Other players' names are saved only from your group roster, party level-ups, duels, honorable kills and whoever killed you. No player chat is read or saved.",
+        "The file stays on your computer; nothing leaves it unless you run the companion tool or share the file yourself. To clear it, log out and delete that file (and StoryTracker.lua.bak).",
+        "Built with: " .. client .. ".",
+    }
+    for _, line in ipairs(lines) do
+        print(line)
+    end
 end
 
 SLASH_STORYTRACKER1 = "/storytracker"
@@ -255,4 +261,5 @@ SlashCmdList["STORYTRACKER"] = function(msg)
     end
     print(string.format("StoryTracker v%d: %s — %d events, %d sessions recorded",
         ST.DB_VERSION, ST.charKey, #char.events, #char.sessions))
+    print("StoryTracker commands: /storytracker about, /storytracker debug")
 end
