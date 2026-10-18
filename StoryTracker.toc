@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: StoryTracker
 ## Notes: Records your adventures for storytelling
-## Author: Tim
+## Author: Nine Point Labs
 ## Version: 1.0.2
 ## SavedVariables: StoryTrackerDB
 
