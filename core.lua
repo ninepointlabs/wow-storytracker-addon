@@ -205,9 +205,44 @@ frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("PLAYER_LOGOUT")
 
+-- About. Version and tagline come from the TOC at runtime; Forever (1.60)
+-- has C_AddOns.GetAddOnMetadata, older clients only the global.
+local GetAddOnMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+
+local function Metadata(field)
+    if not GetAddOnMetadata then return nil end
+    local ok, value = pcall(GetAddOnMetadata, addonName, field)
+    return ok and value or nil
+end
+
+function ST:PrintAbout()
+    local version = Metadata("Version") or "unknown"
+    local build, buildNumber, _, interface = GetBuildInfo()
+    local client = string.format("WoW %s (build %s, interface %s)",
+        tostring(build), tostring(buildNumber), tostring(interface))
+    local notes = Metadata("Notes")
+    print("|cffffd100StoryTracker|r " .. version .. (notes and (" — " .. notes) or ""))
+    print("Made by Nine Point Labs. Created October 2026.")
+    print("License: MIT License, © 2026 Tim. Full text in the addon folder's LICENSE file.")
+    print("Support: help@ninepointlabs.com — please include this line:")
+    print("StoryTracker " .. version .. ", " .. client)
+    print("Privacy: no network access (WoW addons can't use it). StoryTracker records your "
+        .. "character (name, realm, class, race, level, faction, guild), play sessions, and "
+        .. "adventure events (quests, zones, levels, deaths, dungeons, rare+ loot, mounts, "
+        .. "reputation, skills, gold, notable kills, guild changes, group members' names, PvP, duels).")
+    print("It is saved as StoryTrackerDB in WTF/Account/<account>/SavedVariables/StoryTracker.lua "
+        .. "on logout or /reload, and stays on your computer unless you run the companion tool "
+        .. "or share that file yourself. To clear it, delete that file while the game is closed.")
+    print("Built with: " .. client .. ".")
+end
+
 SLASH_STORYTRACKER1 = "/storytracker"
 SlashCmdList["STORYTRACKER"] = function(msg)
-    msg = (msg or ""):lower()
+    msg = (msg or ""):lower():match("^%s*(.-)%s*$")
+    if msg == "about" then
+        ST:PrintAbout()
+        return
+    end
     if msg == "debug" then
         ST.debug = not ST.debug
         print("StoryTracker debug: " .. (ST.debug and "on" or "off"))

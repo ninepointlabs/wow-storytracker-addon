@@ -51,6 +51,9 @@ to an AI that composes narrative blog posts at [myazerothlife.com](https://myaze
 
 - `/storytracker` — show event and session count
 - `/storytracker debug` — toggle debug mode
+- `/storytracker about` — show version, license, support contact, privacy
+  summary, and your WoW client build (copy that line into a support email to
+  help@ninepointlabs.com)
 
 ## License
 
