@@ -223,7 +223,7 @@ function ST:PrintAbout()
     local notes = Metadata("Notes")
     print("|cffffd100StoryTracker|r " .. version .. (notes and (" — " .. notes) or ""))
     print("Made by Nine Point Labs. Created October 2026.")
-    print("License: MIT License, © 2026 Tim. Full text in the addon folder's LICENSE file.")
+    print("License: MIT License, © 2026 Nine Point Labs. Full text in the addon folder's LICENSE file.")
     print("Support: help@ninepointlabs.com — please include this line:")
     print("StoryTracker " .. version .. ", " .. client)
     print("Privacy: no network access (WoW addons can't use it). StoryTracker records your "
