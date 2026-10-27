@@ -2,7 +2,8 @@
 ## Title: StoryTracker
 ## Notes: Records your adventures for storytelling
 ## Author: Nine Point Labs
-## Version: 1.0.3
+## X-Website: https://github.com/ninepointlabs/wow-storytracker-addon
+## Version: 1.0.4
 ## SavedVariables: StoryTrackerDB
 
 core.lua
